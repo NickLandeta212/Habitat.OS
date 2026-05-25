@@ -1,0 +1,3 @@
+enum EstadoFactura {
+    EMITIDA, ANULADA
+}
