@@ -5,7 +5,6 @@ import java.time.LocalTime;
 
 public class Ventana {
 
-    // Componentes enlazados al .form (Swing UI Designer de IntelliJ)
     private JPanel mainPanel;
     private JTabbedPane tabs;
     private JPanel condPanel;
@@ -31,8 +30,7 @@ public class Ventana {
     public JPanel getMainPanel() {
         return mainPanel;
     }
-
-    // ---------- Helpers genéricos ----------
+    
     private JPanel formGrid(String[] labels, JComponent[] fields) {
         JPanel p = new JPanel(new GridLayout(labels.length, 2, 6, 6));
         for (int i = 0; i < labels.length; i++) {
@@ -61,7 +59,6 @@ public class Ventana {
         JOptionPane.showMessageDialog(mainPanel, msg);
     }
 
-    // ---------- Pestaña: Condóminos ----------
     private void construirCondominos() {
         JTextField tId = new JTextField();
         JTextField tCedula = new JTextField();
@@ -115,7 +112,6 @@ public class Ventana {
         condPanel.add(armarTab(form, botones, salida));
     }
 
-    // ---------- Pestaña: Áreas Comunes ----------
     private void construirAreas() {
         JTextField tId = new JTextField();
         JTextField tNombre = new JTextField();
@@ -158,7 +154,6 @@ public class Ventana {
         areaPanel.add(armarTab(form, botones, salida));
     }
 
-    // ---------- Pestaña: Reservas ----------
     private void construirReservas() {
         JTextField tCodigo = new JTextField();
         JTextField tFecha = new JTextField(LocalDate.now().toString());
@@ -205,7 +200,6 @@ public class Ventana {
         reservaPanel.add(armarTab(form, botones, salida));
     }
 
-    // ---------- Pestaña: Pagos ----------
     private void construirPagos() {
         JTextField tCodigo = new JTextField();
         JTextField tFecha = new JTextField(LocalDate.now().toString());
@@ -250,7 +244,6 @@ public class Ventana {
         pagoPanel.add(armarTab(form, botones, salida));
     }
 
-    // ---------- Pestaña: Multas ----------
     private void construirMultas() {
         JTextField tCodigo = new JTextField();
         JTextField tFecha = new JTextField(LocalDate.now().toString());
@@ -298,7 +291,6 @@ public class Ventana {
         multaPanel.add(armarTab(form, botones, salida));
     }
 
-    // ---------- Pestaña: Facturas ----------
     private void construirFacturas() {
         JTextField tNum = new JTextField();
         JTextField tCedula = new JTextField();
@@ -341,9 +333,8 @@ public class Ventana {
 
         facturaPanel.setLayout(new BorderLayout());
         facturaPanel.add(armarTab(form, botones, salida));
-    }
+    } 
 
-    // ---------- Pestaña: Acciones / Reportes ----------
     private void construirAcciones() {
         JButton bVer = new JButton("Ver última acción");
         JButton bQuitar = new JButton("Quitar última acción");
@@ -370,7 +361,6 @@ public class Ventana {
         accionesPanel.add(armarTab(new JPanel(), botones, salida));
     }
 
-    // ---------- Punto de entrada ----------
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
             JFrame frame = new JFrame("HABITAT.OS");
