@@ -28,59 +28,112 @@ public class GestorHabitatOS {
         pilaAcciones = new Stack<>();
     }
 
-    public boolean registrarCondomino(Condomino condomino) {
-        if (buscarCondominoSecuencial(condomino.getCedula()) != null) {
+    private boolean textoVacio(String texto) {
+        if (texto == null) {
+            return true;
+        } else if (texto.trim().isEmpty()) {
+            return true;
+        } else {
             return false;
         }
+    }
 
-        condominos.add(condomino);
-        pilaAcciones.push("Se registró el condómino: " + condomino.getNombre());
-        return true;
+    private boolean identificadorValido(String identificador) {
+        if (textoVacio(identificador)) {
+            return false;
+        } else if (identificador.trim().startsWith("-")) {
+            return false;
+        } else {
+            return true;
+        }
+    }
+
+    public boolean registrarCondomino(Condomino condomino) {
+        if (condomino == null) {
+            return false;
+        } else if (!identificadorValido(condomino.getCedula())) {
+            return false;
+        } else if (textoVacio(condomino.getNombre())) {
+            return false;
+        } else if (buscarCondominoSecuencial(condomino.getCedula()) != null) {
+            return false;
+        } else {
+            condominos.add(condomino);
+            pilaAcciones.push("Se registró el condómino: " + condomino.getNombre());
+            return true;
+        }
     }
 
     public Condomino buscarCondominoSecuencial(String cedula) {
+        if (!identificadorValido(cedula)) {
+            return null;
+        }
+
         for (Condomino c : condominos) {
-            if (c.getCedula().equals(cedula)) {
+            if (c.getCedula().trim().equals(cedula.trim())) {
                 return c;
             }
         }
+
         return null;
     }
 
-    public boolean modificarCondomino(String cedula, String telefono, String correo, EstadoCondomino estado) {
+    public boolean modificarCondomino(
+            String cedula,
+            String telefono,
+            String correo,
+            EstadoCondomino estado
+    ) {
+        if (!identificadorValido(cedula)) {
+            return false;
+        } else if (textoVacio(telefono)) {
+            return false;
+        } else if (textoVacio(correo)) {
+            return false;
+        } else if (estado == null) {
+            return false;
+        }
+
         Condomino encontrado = buscarCondominoBinaria(cedula);
 
-        if (encontrado != null) {
-            encontrado.setTelefono(telefono);
-            encontrado.setCorreo(correo);
+        if (encontrado == null) {
+            return false;
+        } else {
+            encontrado.setTelefono(telefono.trim());
+            encontrado.setCorreo(correo.trim());
             encontrado.setEstadoCondomino(estado);
-
             pilaAcciones.push("Se modificó el condómino con cédula: " + cedula);
             return true;
         }
-
-        return false;
     }
 
     public boolean inactivarCondomino(String cedula) {
+        if (!identificadorValido(cedula)) {
+            return false;
+        }
+
         Condomino encontrado = buscarCondominoSecuencial(cedula);
 
-        if (encontrado != null) {
+        if (encontrado == null) {
+            return false;
+        } else if (encontrado.getEstadoCondomino() == EstadoCondomino.INACTIVO) {
+            return false;
+        } else {
             encontrado.setEstadoCondomino(EstadoCondomino.INACTIVO);
             pilaAcciones.push("Se inactivó el condómino con cédula: " + cedula);
             return true;
         }
-
-        return false;
     }
 
-    // Insertion Sort: ordenamiento secuencial por cédula
     public void ordenarCondominosPorCedula() {
         for (int i = 1; i < condominos.size(); i++) {
             Condomino actual = condominos.get(i);
             int j = i - 1;
 
-            while (j >= 0 && condominos.get(j).getCedula().compareTo(actual.getCedula()) > 0) {
+            while (j >= 0
+                    && condominos.get(j).getCedula()
+                    .compareTo(actual.getCedula()) > 0) {
+
                 condominos.set(j + 1, condominos.get(j));
                 j--;
             }
@@ -89,13 +142,25 @@ public class GestorHabitatOS {
         }
     }
 
-    // Búsqueda binaria recursiva
     public Condomino buscarCondominoBinaria(String cedula) {
+        if (!identificadorValido(cedula)) {
+            return null;
+        }
+
         ordenarCondominosPorCedula();
-        return buscarCondominoBinariaRecursiva(cedula, 0, condominos.size() - 1);
+
+        return buscarCondominoBinariaRecursiva(
+                cedula.trim(),
+                0,
+                condominos.size() - 1
+        );
     }
 
-    private Condomino buscarCondominoBinariaRecursiva(String cedula, int inicio, int fin) {
+    private Condomino buscarCondominoBinariaRecursiva(
+            String cedula,
+            int inicio,
+            int fin
+    ) {
         if (inicio > fin) {
             return null;
         }
@@ -108,41 +173,122 @@ public class GestorHabitatOS {
         if (comparacion == 0) {
             return actual;
         } else if (comparacion > 0) {
-            return buscarCondominoBinariaRecursiva(cedula, inicio, medio - 1);
+            return buscarCondominoBinariaRecursiva(
+                    cedula,
+                    inicio,
+                    medio - 1
+            );
         } else {
-            return buscarCondominoBinariaRecursiva(cedula, medio + 1, fin);
+            return buscarCondominoBinariaRecursiva(
+                    cedula,
+                    medio + 1,
+                    fin
+            );
         }
     }
 
     public boolean registrarAreaComun(AreaComun area) {
-        if (buscarAreaSecuencial(area.getId()) != null) {
+        if (area == null) {
+            return false;
+        } else if (!identificadorValido(area.getId())) {
+            return false;
+        } else if (textoVacio(area.getNombre())) {
+            return false;
+        } else if (buscarAreaSecuencial(area.getId()) != null) {
+            return false;
+        } else if (existeAreaConMismoNombre(area.getNombre())) {
+            return false;
+        } else {
+            areasComunes.add(area);
+            pilaAcciones.push("Se registró el área común: " + area.getNombre());
+            return true;
+        }
+    }
+
+    private boolean existeAreaConMismoNombre(String nombre) {
+        if (textoVacio(nombre)) {
             return false;
         }
 
-        areasComunes.add(area);
-        pilaAcciones.push("Se registró el área común: " + area.getNombre());
-        return true;
+        for (AreaComun area : areasComunes) {
+            if (area.getNombre().trim().equalsIgnoreCase(nombre.trim())) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public AreaComun buscarAreaSecuencial(String id) {
+        if (!identificadorValido(id)) {
+            return null;
+        }
+
         for (AreaComun area : areasComunes) {
-            if (area.getId().equals(id)) {
+            if (area.getId().trim().equals(id.trim())) {
                 return area;
             }
         }
+
         return null;
     }
 
     public boolean solicitarReserva(Reserva reserva) {
-        if (!reserva.esValida()) {
+        if (reserva == null) {
             return false;
+        } else if (!identificadorValido(reserva.getCodigo())) {
+            return false;
+        } else if (reserva.getAreaComun() == null) {
+            return false;
+        } else if (!identificadorValido(reserva.getAreaComun().getId())) {
+            return false;
+        } else if (buscarReservaSecuencial(reserva.getCodigo()) != null) {
+            return false;
+        } else if (!reserva.esValida()) {
+            return false;
+        } else if (existeReservaExactamenteIgual(reserva)) {
+            return false;
+        } else {
+            reservas.add(reserva);
+            colaReservasPendientes.offer(reserva);
+            pilaAcciones.push("Se solicitó la reserva: " + reserva.getCodigo());
+            return true;
+        }
+    }
+
+    private boolean existeReservaExactamenteIgual(Reserva nueva) {
+        for (Reserva registrada : reservas) {
+            if (registrada.getAreaComun() == null
+                    || nueva.getAreaComun() == null) {
+                continue;
+            }
+
+            boolean mismaArea =
+                    registrada.getAreaComun().getId().trim()
+                            .equals(nueva.getAreaComun().getId().trim());
+
+            boolean mismaFecha =
+                    registrada.getFecha().equals(nueva.getFecha());
+
+            boolean mismaHoraInicio =
+                    registrada.getHoraInicio().equals(nueva.getHoraInicio());
+
+            boolean mismaHoraFin =
+                    registrada.getHoraFin().equals(nueva.getHoraFin());
+
+            boolean noEstaCancelada =
+                    registrada.getEstadoReserva() != EstadoReserva.CANCELADA;
+
+            if (mismaArea
+                    && mismaFecha
+                    && mismaHoraInicio
+                    && mismaHoraFin
+                    && noEstaCancelada) {
+                return true;
+            }
         }
 
-        reservas.add(reserva);
-        colaReservasPendientes.offer(reserva);
-
-        pilaAcciones.push("Se solicitó la reserva: " + reserva.getCodigo());
-        return true;
+        return false;
     }
 
     public boolean procesarSiguienteReserva() {
@@ -150,55 +296,79 @@ public class GestorHabitatOS {
 
         if (reserva == null) {
             return false;
-        }
-
-        if (!reserva.getAreaComun().estaDisponible() || hayCruceDeHorario(reserva)) {
+        } else if (!reserva.getAreaComun().estaDisponible()) {
             reserva.cancelar();
-            pilaAcciones.push("Se canceló la reserva: " + reserva.getCodigo());
+            pilaAcciones.push(
+                    "Se canceló la reserva porque el área no está disponible: "
+                            + reserva.getCodigo()
+            );
             return false;
+        } else if (hayCruceDeHorario(reserva)) {
+            reserva.cancelar();
+            pilaAcciones.push(
+                    "Se canceló la reserva por cruce de horario: "
+                            + reserva.getCodigo()
+            );
+            return false;
+        } else {
+            reserva.confirmar();
+            pilaAcciones.push("Se confirmó la reserva: " + reserva.getCodigo());
+            return true;
         }
-
-        reserva.confirmar();
-        pilaAcciones.push("Se confirmó la reserva: " + reserva.getCodigo());
-        return true;
     }
 
     public Reserva buscarReservaSecuencial(String codigo) {
-        for (Reserva r : reservas) {
-            if (r.getCodigo().equals(codigo)) {
-                return r;
+        if (!identificadorValido(codigo)) {
+            return null;
+        }
+
+        for (Reserva reserva : reservas) {
+            if (reserva.getCodigo().trim().equals(codigo.trim())) {
+                return reserva;
             }
         }
+
         return null;
     }
 
     public boolean cancelarReserva(String codigo) {
+        if (!identificadorValido(codigo)) {
+            return false;
+        }
+
         Reserva reserva = buscarReservaSecuencial(codigo);
 
-        if (reserva != null) {
+        if (reserva == null) {
+            return false;
+        } else if (reserva.getEstadoReserva() == EstadoReserva.CANCELADA) {
+            return false;
+        } else {
             reserva.cancelar();
             pilaAcciones.push("Se canceló la reserva: " + codigo);
             return true;
         }
-
-        return false;
     }
 
     private boolean hayCruceDeHorario(Reserva nueva) {
-        for (Reserva r : reservas) {
-            if (r == nueva) {
+        for (Reserva registrada : reservas) {
+            if (registrada == nueva) {
                 continue;
             }
 
-            if (r.getEstadoReserva() == EstadoReserva.CANCELADA) {
+            if (registrada.getEstadoReserva() == EstadoReserva.CANCELADA) {
                 continue;
             }
 
-            boolean mismaArea = r.getAreaComun().getId().equals(nueva.getAreaComun().getId());
-            boolean mismaFecha = r.getFecha().equals(nueva.getFecha());
+            boolean mismaArea =
+                    registrada.getAreaComun().getId()
+                            .equals(nueva.getAreaComun().getId());
 
-            boolean seCruzanHoras = nueva.getHoraInicio().isBefore(r.getHoraFin())
-                    && nueva.getHoraFin().isAfter(r.getHoraInicio());
+            boolean mismaFecha =
+                    registrada.getFecha().equals(nueva.getFecha());
+
+            boolean seCruzanHoras =
+                    nueva.getHoraInicio().isBefore(registrada.getHoraFin())
+                            && nueva.getHoraFin().isAfter(registrada.getHoraInicio());
 
             if (mismaArea && mismaFecha && seCruzanHoras) {
                 return true;
@@ -208,107 +378,180 @@ public class GestorHabitatOS {
         return false;
     }
 
-
     public boolean registrarPago(Pago pago) {
-        pagos.add(pago);
-        pago.registrarPago();
-
-        pilaAcciones.push("Se registró el pago: " + pago.getCodigo());
-        return true;
+        if (pago == null) {
+            return false;
+        } else if (!identificadorValido(pago.getCodigo())) {
+            return false;
+        } else if (buscarPagoSecuencial(pago.getCodigo()) != null) {
+            return false;
+        } else {
+            pagos.add(pago);
+            pago.registrarPago();
+            pilaAcciones.push("Se registró el pago: " + pago.getCodigo());
+            return true;
+        }
     }
 
     public Pago buscarPagoSecuencial(String codigo) {
-        for (Pago p : pagos) {
-            if (p.getCodigo().equals(codigo)) {
-                return p;
+        if (!identificadorValido(codigo)) {
+            return null;
+        }
+
+        for (Pago pago : pagos) {
+            if (pago.getCodigo().trim().equals(codigo.trim())) {
+                return pago;
             }
         }
+
         return null;
     }
 
-    public boolean actualizarEstadoPago(String codigo, EstadoPago estadoPago) {
+    public boolean actualizarEstadoPago(
+            String codigo,
+            EstadoPago estadoPago
+    ) {
+        if (!identificadorValido(codigo)) {
+            return false;
+        } else if (estadoPago == null) {
+            return false;
+        }
+
         Pago pago = buscarPagoSecuencial(codigo);
 
-        if (pago != null) {
+        if (pago == null) {
+            return false;
+        } else {
             pago.actualizarEstado(estadoPago);
             pilaAcciones.push("Se actualizó el pago: " + codigo);
             return true;
         }
-
-        return false;
     }
 
     public boolean registrarMulta(Multa multa) {
-        multas.add(multa);
-        multa.registrar();
-
-        pilaAcciones.push("Se registró la multa: " + multa.getCodigo());
-        return true;
+        if (multa == null) {
+            return false;
+        } else if (!identificadorValido(multa.getCodigo())) {
+            return false;
+        } else if (buscarMultaSecuencial(multa.getCodigo()) != null) {
+            return false;
+        } else {
+            multas.add(multa);
+            multa.registrar();
+            pilaAcciones.push("Se registró la multa: " + multa.getCodigo());
+            return true;
+        }
     }
 
     public Multa buscarMultaSecuencial(String codigo) {
-        for (Multa m : multas) {
-            if (m.getCodigo().equals(codigo)) {
-                return m;
+        if (!identificadorValido(codigo)) {
+            return null;
+        }
+
+        for (Multa multa : multas) {
+            if (multa.getCodigo().trim().equals(codigo.trim())) {
+                return multa;
             }
         }
+
         return null;
     }
 
     public boolean pagarMulta(String codigo) {
+        if (!identificadorValido(codigo)) {
+            return false;
+        }
+
         Multa multa = buscarMultaSecuencial(codigo);
 
-        if (multa != null) {
+        if (multa == null) {
+            return false;
+        } else {
             multa.pagarMulta();
             pilaAcciones.push("Se pagó la multa: " + codigo);
             return true;
         }
-
-        return false;
     }
 
     public boolean anularMulta(String codigo) {
+        if (!identificadorValido(codigo)) {
+            return false;
+        }
+
         Multa multa = buscarMultaSecuencial(codigo);
 
-        if (multa != null) {
+        if (multa == null) {
+            return false;
+        } else {
             multa.anular();
             pilaAcciones.push("Se anuló la multa: " + codigo);
             return true;
         }
-
-        return false;
     }
 
-    public Factura generarFactura(String numero, Condomino condomino, Pago pago, Multa multa) {
-        Factura factura = new Factura(numero, LocalDate.now(), condomino, pago, multa);
-        facturas.add(factura);
+    public Factura generarFactura(
+            String numero,
+            Condomino condomino,
+            Pago pago,
+            Multa multa
+    ) {
+        if (!identificadorValido(numero)) {
+            return null;
+        } else if (condomino == null) {
+            return null;
+        } else if (pago == null && multa == null) {
+            return null;
+        } else if (buscarFacturaSecuencial(numero) != null) {
+            return null;
+        } else {
+            Factura factura = new Factura(
+                    numero,
+                    LocalDate.now(),
+                    condomino,
+                    pago,
+                    multa
+            );
 
-        pilaAcciones.push("Se generó la factura: " + numero);
-        return factura;
+            if (factura.getTotalMonto() < 0) {
+                return null;
+            } else {
+                facturas.add(factura);
+                pilaAcciones.push("Se generó la factura: " + numero);
+                return factura;
+            }
+        }
     }
 
     public Factura buscarFacturaSecuencial(String numero) {
-        for (Factura f : facturas) {
-            if (f.getNumero().equals(numero)) {
-                return f;
+        if (!identificadorValido(numero)) {
+            return null;
+        }
+
+        for (Factura factura : facturas) {
+            if (factura.getNumero().trim().equals(numero.trim())) {
+                return factura;
             }
         }
+
         return null;
     }
 
     public boolean anularFactura(String numero) {
+        if (!identificadorValido(numero)) {
+            return false;
+        }
+
         Factura factura = buscarFacturaSecuencial(numero);
 
-        if (factura != null) {
+        if (factura == null) {
+            return false;
+        } else {
             factura.anular();
             pilaAcciones.push("Se anuló la factura: " + numero);
             return true;
         }
-
-        return false;
     }
 
-    // Recursividad para sumar todas las facturas
     public double calcularTotalFacturasRecursivo() {
         return sumarFacturas(0);
     }
@@ -316,33 +559,38 @@ public class GestorHabitatOS {
     private double sumarFacturas(int indice) {
         if (indice >= facturas.size()) {
             return 0;
+        } else {
+            return facturas.get(indice).getTotalMonto()
+                    + sumarFacturas(indice + 1);
         }
-
-        return facturas.get(indice).getTotalMonto() + sumarFacturas(indice + 1);
     }
 
     public String verUltimaAccion() {
         if (pilaAcciones.isEmpty()) {
             return "No hay acciones registradas.";
+        } else {
+            return pilaAcciones.peek();
         }
-
-        return pilaAcciones.peek();
     }
 
     public String quitarUltimaAccion() {
         if (pilaAcciones.isEmpty()) {
             return "No hay acciones para quitar.";
+        } else {
+            return pilaAcciones.pop();
         }
-
-        return pilaAcciones.pop();
     }
 
     public String generarReporteCondominos() {
         StringBuilder reporte = new StringBuilder();
-        reporte.append(" REPORTE DE CONDÓMINOS \n\n");
+        reporte.append("REPORTE DE CONDÓMINOS\n\n");
 
-        for (Condomino c : condominos) {
-            reporte.append(c.toString()).append("\n");
+        if (condominos.isEmpty()) {
+            reporte.append("No existen condóminos registrados.\n");
+        } else {
+            for (Condomino condomino : condominos) {
+                reporte.append(condomino).append("\n");
+            }
         }
 
         return reporte.toString();
@@ -350,10 +598,14 @@ public class GestorHabitatOS {
 
     public String generarReporteReservas() {
         StringBuilder reporte = new StringBuilder();
-        reporte.append("REPORTE DE RESERVAS \n\n");
+        reporte.append("REPORTE DE RESERVAS\n\n");
 
-        for (Reserva r : reservas) {
-            reporte.append(r.toString()).append("\n");
+        if (reservas.isEmpty()) {
+            reporte.append("No existen reservas registradas.\n");
+        } else {
+            for (Reserva reserva : reservas) {
+                reporte.append(reserva).append("\n");
+            }
         }
 
         return reporte.toString();
@@ -361,10 +613,14 @@ public class GestorHabitatOS {
 
     public String generarReportePagos() {
         StringBuilder reporte = new StringBuilder();
-        reporte.append(" REPORTE DE PAGOS\n\n");
+        reporte.append("REPORTE DE PAGOS\n\n");
 
-        for (Pago p : pagos) {
-            reporte.append(p.toString()).append("\n");
+        if (pagos.isEmpty()) {
+            reporte.append("No existen pagos registrados.\n");
+        } else {
+            for (Pago pago : pagos) {
+                reporte.append(pago).append("\n");
+            }
         }
 
         return reporte.toString();
@@ -374,8 +630,12 @@ public class GestorHabitatOS {
         StringBuilder reporte = new StringBuilder();
         reporte.append("REPORTE DE MULTAS\n\n");
 
-        for (Multa m : multas) {
-            reporte.append(m.toString()).append("\n");
+        if (multas.isEmpty()) {
+            reporte.append("No existen multas registradas.\n");
+        } else {
+            for (Multa multa : multas) {
+                reporte.append(multa).append("\n");
+            }
         }
 
         return reporte.toString();
@@ -383,14 +643,18 @@ public class GestorHabitatOS {
 
     public String generarReporteFacturas() {
         StringBuilder reporte = new StringBuilder();
-        reporte.append("REPORTE DE FACTURAS \n\n");
+        reporte.append("REPORTE DE FACTURAS\n\n");
 
-        for (Factura f : facturas) {
-            reporte.append(f.toString()).append("\n");
+        if (facturas.isEmpty()) {
+            reporte.append("No existen facturas registradas.\n");
+        } else {
+            for (Factura factura : facturas) {
+                reporte.append(factura).append("\n");
+            }
+
+            reporte.append("\nTotal general facturado: $")
+                    .append(calcularTotalFacturasRecursivo());
         }
-
-        reporte.append("Total general facturado: $")
-                .append(calcularTotalFacturasRecursivo());
 
         return reporte.toString();
     }
