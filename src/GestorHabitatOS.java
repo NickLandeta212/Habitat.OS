@@ -6,123 +6,140 @@ import java.util.Stack;
 
 public class GestorHabitatOS {
 
-    private ArrayList<Condomino> condominos;
-    private ArrayList<AreaComun> areasComunes;
-    private ArrayList<Reserva> reservas;
-    private ArrayList<Pago> pagos;
-    private ArrayList<Multa> multas;
-    private ArrayList<Factura> facturas;
+    private HabitatDAO dao = new HabitatDAO();
 
-    private Queue<Reserva> colaReservasPendientes;
-    private Stack<String> pilaAcciones;
+    private ArrayList<Condomino> condominos = new ArrayList<>();
+    private ArrayList<AreaComun> areasComunes = new ArrayList<>();
+    private ArrayList<Reserva> reservas = new ArrayList<>();
+    private ArrayList<Pago> pagos = new ArrayList<>();
+    private ArrayList<Multa> multas = new ArrayList<>();
+    private ArrayList<Factura> facturas = new ArrayList<>();
+
+    private Queue<Reserva> colaReservasPendientes = new LinkedList<>();
+    private Stack<String> pilaAcciones = new Stack<>();
+
+    private ArbolBinario<Condomino> arbolCondominos = new ArbolBinario<>(Condomino::getCedula);
+    private ArbolBinario<AreaComun> arbolAreas = new ArbolBinario<>(AreaComun::getId);
+    private ArbolBinario<Reserva> arbolReservas = new ArbolBinario<>(Reserva::getCodigo);
+    private ArbolBinario<Pago> arbolPagos = new ArbolBinario<>(Pago::getCodigo);
+    private ArbolBinario<Pago> arbolComprobantes = new ArbolBinario<>(Pago::getNroComprobante);
+    private ArbolBinario<Multa> arbolMultas = new ArbolBinario<>(Multa::getCodigo);
+    private ArbolBinario<Factura> arbolFacturas = new ArbolBinario<>(Factura::getNumero);
 
     public GestorHabitatOS() {
-        condominos = new ArrayList<>();
-        areasComunes = new ArrayList<>();
-        reservas = new ArrayList<>();
-        pagos = new ArrayList<>();
-        multas = new ArrayList<>();
-        facturas = new ArrayList<>();
-
-        colaReservasPendientes = new LinkedList<>();
-        pilaAcciones = new Stack<>();
+        cargarDatosDesdeMySQL();
     }
 
-    private boolean textoVacio(String texto) {
-        if (texto == null) {
-            return true;
-        } else if (texto.trim().isEmpty()) {
-            return true;
-        } else {
-            return false;
-        }
+    public void cargarDatosDesdeMySQL() {
+        condominos = dao.listarCondominos();
+        areasComunes = dao.listarAreas();
+        reservas = dao.listarReservas(areasComunes, condominos);
+        pagos = dao.listarPagos(condominos);
+        multas = dao.listarMultas(condominos);
+        facturas = dao.listarFacturas(condominos, pagos, multas);
+
+        reconstruirEstructuras();
     }
 
-    private boolean identificadorValido(String identificador) {
-        if (textoVacio(identificador)) {
-            return false;
-        } else if (identificador.trim().startsWith("-")) {
-            return false;
-        } else {
-            return true;
-        }
-    }
+    private void reconstruirEstructuras() {
+        arbolCondominos.limpiar();
+        arbolAreas.limpiar();
+        arbolReservas.limpiar();
+        arbolPagos.limpiar();
+        arbolComprobantes.limpiar();
+        arbolMultas.limpiar();
+        arbolFacturas.limpiar();
+        colaReservasPendientes.clear();
 
-    public boolean registrarCondomino(Condomino condomino) {
-        if (condomino == null) {
-            return false;
-        } else if (!identificadorValido(condomino.getCedula())) {
-            return false;
-        } else if (textoVacio(condomino.getNombre())) {
-            return false;
-        } else if (buscarCondominoSecuencial(condomino.getCedula()) != null) {
-            return false;
-        } else {
-            condominos.add(condomino);
-            pilaAcciones.push("Se registró el condómino: " + condomino.getNombre());
-            return true;
-        }
-    }
+        for (Condomino c : condominos) arbolCondominos.insertar(c);
+        for (AreaComun a : areasComunes) arbolAreas.insertar(a);
 
-    public Condomino buscarCondominoSecuencial(String cedula) {
-        if (!identificadorValido(cedula)) {
-            return null;
-        }
+        for (Reserva r : reservas) {
+            arbolReservas.insertar(r);
 
-        for (Condomino c : condominos) {
-            if (c.getCedula().trim().equals(cedula.trim())) {
-                return c;
+            if (r.getEstadoReserva() == EstadoReserva.PENDIENTE) {
+                colaReservasPendientes.offer(r);
             }
         }
 
-        return null;
+        for (Pago p : pagos) {
+            arbolPagos.insertar(p);
+            arbolComprobantes.insertar(p);
+        }
+
+        for (Multa m : multas) arbolMultas.insertar(m);
+        for (Factura f : facturas) arbolFacturas.insertar(f);
     }
 
-    public boolean modificarCondomino(
-            String cedula,
-            String telefono,
-            String correo,
-            EstadoCondomino estado
-    ) {
-        if (!identificadorValido(cedula)) {
-            return false;
-        } else if (textoVacio(telefono)) {
-            return false;
-        } else if (textoVacio(correo)) {
-            return false;
-        } else if (estado == null) {
+    public boolean registrarCondomino(Condomino condomino) {
+        if (condomino == null ||
+                !Validador.enteroPositivo(condomino.getId()) ||
+                !Validador.cedula(condomino.getCedula()) ||
+                !Validador.nombre(condomino.getNombre()) ||
+                !Validador.telefono(condomino.getTelefono()) ||
+                !Validador.correo(condomino.getCorreo()) ||
+                !Validador.texto(condomino.getNumeroDepartamento()) ||
+                condomino.getEstadoCondomino() == null ||
+                arbolCondominos.contiene(condomino.getCedula())) {
             return false;
         }
 
-        Condomino encontrado = buscarCondominoBinaria(cedula);
-
-        if (encontrado == null) {
-            return false;
-        } else {
-            encontrado.setTelefono(telefono.trim());
-            encontrado.setCorreo(correo.trim());
-            encontrado.setEstadoCondomino(estado);
-            pilaAcciones.push("Se modificó el condómino con cédula: " + cedula);
+        if (dao.insertarCondomino(condomino)) {
+            condominos.add(condomino);
+            arbolCondominos.insertar(condomino);
+            pilaAcciones.push("Se registró condómino en MySQL: " + condomino.getNombre());
             return true;
         }
+
+        return false;
+    }
+
+    public Condomino buscarCondominoSecuencial(String cedula) {
+        return arbolCondominos.buscar(cedula);
+    }
+
+    public Condomino buscarCondominoBinaria(String cedula) {
+        return arbolCondominos.buscar(cedula);
+    }
+
+    public boolean modificarCondomino(String cedula, String telefono, String correo, EstadoCondomino estado) {
+        if (!Validador.cedula(cedula) ||
+                !Validador.telefono(telefono) ||
+                !Validador.correo(correo) ||
+                estado == null) {
+            return false;
+        }
+
+        Condomino c = arbolCondominos.buscar(cedula);
+
+        if (c == null) {
+            return false;
+        }
+
+        if (dao.actualizarCondomino(cedula, telefono.trim(), correo.trim(), estado)) {
+            c.setTelefono(telefono.trim());
+            c.setCorreo(correo.trim());
+            c.setEstadoCondomino(estado);
+            pilaAcciones.push("Se modificó condómino: " + cedula);
+            return true;
+        }
+
+        return false;
     }
 
     public boolean inactivarCondomino(String cedula) {
-        if (!identificadorValido(cedula)) {
+        Condomino c = buscarCondominoSecuencial(cedula);
+
+        if (c == null) {
             return false;
         }
 
-        Condomino encontrado = buscarCondominoSecuencial(cedula);
-
-        if (encontrado == null) {
-            return false;
-        } else if (encontrado.getEstadoCondomino() == EstadoCondomino.INACTIVO) {
-            return false;
-        } else {
-            encontrado.setEstadoCondomino(EstadoCondomino.INACTIVO);
-            pilaAcciones.push("Se inactivó el condómino con cédula: " + cedula);
-            return true;
-        }
+        return modificarCondomino(
+                cedula,
+                c.getTelefono(),
+                c.getCorreo(),
+                EstadoCondomino.INACTIVO
+        );
     }
 
     public void ordenarCondominosPorCedula() {
@@ -130,10 +147,7 @@ public class GestorHabitatOS {
             Condomino actual = condominos.get(i);
             int j = i - 1;
 
-            while (j >= 0
-                    && condominos.get(j).getCedula()
-                    .compareTo(actual.getCedula()) > 0) {
-
+            while (j >= 0 && condominos.get(j).getCedula().compareTo(actual.getCedula()) > 0) {
                 condominos.set(j + 1, condominos.get(j));
                 j--;
             }
@@ -142,148 +156,67 @@ public class GestorHabitatOS {
         }
     }
 
-    public Condomino buscarCondominoBinaria(String cedula) {
-        if (!identificadorValido(cedula)) {
-            return null;
-        }
-
-        ordenarCondominosPorCedula();
-
-        return buscarCondominoBinariaRecursiva(
-                cedula.trim(),
-                0,
-                condominos.size() - 1
-        );
-    }
-
-    private Condomino buscarCondominoBinariaRecursiva(
-            String cedula,
-            int inicio,
-            int fin
-    ) {
-        if (inicio > fin) {
-            return null;
-        }
-
-        int medio = (inicio + fin) / 2;
-        Condomino actual = condominos.get(medio);
-
-        int comparacion = actual.getCedula().compareTo(cedula);
-
-        if (comparacion == 0) {
-            return actual;
-        } else if (comparacion > 0) {
-            return buscarCondominoBinariaRecursiva(
-                    cedula,
-                    inicio,
-                    medio - 1
-            );
-        } else {
-            return buscarCondominoBinariaRecursiva(
-                    cedula,
-                    medio + 1,
-                    fin
-            );
-        }
-    }
-
     public boolean registrarAreaComun(AreaComun area) {
-        if (area == null) {
+        if (area == null ||
+                !Validador.enteroPositivo(area.getId()) ||
+                !Validador.texto(area.getNombre()) ||
+                area.getCapacidad() <= 0 ||
+                !Validador.texto(area.getDescripcion()) ||
+                arbolAreas.contiene(area.getId())) {
             return false;
-        } else if (!identificadorValido(area.getId())) {
-            return false;
-        } else if (textoVacio(area.getNombre())) {
-            return false;
-        } else if (buscarAreaSecuencial(area.getId()) != null) {
-            return false;
-        } else if (existeAreaConMismoNombre(area.getNombre())) {
-            return false;
-        } else {
+        }
+
+        if (dao.insertarArea(area)) {
             areasComunes.add(area);
-            pilaAcciones.push("Se registró el área común: " + area.getNombre());
+            arbolAreas.insertar(area);
+            pilaAcciones.push("Se registró área común en MySQL: " + area.getNombre());
             return true;
-        }
-    }
-
-    private boolean existeAreaConMismoNombre(String nombre) {
-        if (textoVacio(nombre)) {
-            return false;
-        }
-
-        for (AreaComun area : areasComunes) {
-            if (area.getNombre().trim().equalsIgnoreCase(nombre.trim())) {
-                return true;
-            }
         }
 
         return false;
     }
 
     public AreaComun buscarAreaSecuencial(String id) {
-        if (!identificadorValido(id)) {
-            return null;
-        }
-
-        for (AreaComun area : areasComunes) {
-            if (area.getId().trim().equals(id.trim())) {
-                return area;
-            }
-        }
-
-        return null;
+        return arbolAreas.buscar(id);
     }
 
     public boolean solicitarReserva(Reserva reserva) {
-        if (reserva == null) {
+        if (reserva == null ||
+                !Validador.enteroPositivo(reserva.getCodigo()) ||
+                arbolReservas.contiene(reserva.getCodigo()) ||
+                !Validador.fechaReserva(reserva.getFecha()) ||
+                !Validador.horas(reserva.getHoraInicio(), reserva.getHoraFin()) ||
+                reserva.getAreaComun() == null ||
+                !reserva.getAreaComun().estaDisponible() ||
+                reserva.getCondomino() == null ||
+                reserva.getCondomino().getEstadoCondomino() != EstadoCondomino.ACTIVO ||
+                existeCruceReserva(reserva)) {
             return false;
-        } else if (!identificadorValido(reserva.getCodigo())) {
-            return false;
-        } else if (reserva.getAreaComun() == null) {
-            return false;
-        } else if (!identificadorValido(reserva.getAreaComun().getId())) {
-            return false;
-        } else if (buscarReservaSecuencial(reserva.getCodigo()) != null) {
-            return false;
-        } else if (!reserva.esValida()) {
-            return false;
-        } else if (existeReservaExactamenteIgual(reserva)) {
-            return false;
-        } else {
+        }
+
+        if (dao.insertarReserva(reserva)) {
             reservas.add(reserva);
             colaReservasPendientes.offer(reserva);
-            pilaAcciones.push("Se solicitó la reserva: " + reserva.getCodigo());
+            arbolReservas.insertar(reserva);
+            pilaAcciones.push("Se registró reserva en MySQL: " + reserva.getCodigo());
             return true;
         }
+
+        return false;
     }
 
-    private boolean existeReservaExactamenteIgual(Reserva nueva) {
-        for (Reserva registrada : reservas) {
-            if (registrada.getAreaComun() == null
-                    || nueva.getAreaComun() == null) {
+    private boolean existeCruceReserva(Reserva nueva) {
+        for (Reserva r : reservas) {
+            if (r.getEstadoReserva() == EstadoReserva.CANCELADA) {
                 continue;
             }
 
-            boolean mismaArea =
-                    registrada.getAreaComun().getId().trim()
-                            .equals(nueva.getAreaComun().getId().trim());
+            boolean mismaArea = r.getAreaComun().getId().equals(nueva.getAreaComun().getId());
+            boolean mismaFecha = r.getFecha().equals(nueva.getFecha());
+            boolean cruce = nueva.getHoraInicio().isBefore(r.getHoraFin())
+                    && nueva.getHoraFin().isAfter(r.getHoraInicio());
 
-            boolean mismaFecha =
-                    registrada.getFecha().equals(nueva.getFecha());
-
-            boolean mismaHoraInicio =
-                    registrada.getHoraInicio().equals(nueva.getHoraInicio());
-
-            boolean mismaHoraFin =
-                    registrada.getHoraFin().equals(nueva.getHoraFin());
-
-            boolean noEstaCancelada =
-                    registrada.getEstadoReserva() != EstadoReserva.CANCELADA;
-
-            if (mismaArea
-                    && mismaFecha
-                    && mismaHoraInicio
-                    && mismaHoraFin
-                    && noEstaCancelada) {
+            if (mismaArea && mismaFecha && cruce) {
                 return true;
             }
         }
@@ -292,85 +225,13 @@ public class GestorHabitatOS {
     }
 
     public boolean procesarSiguienteReserva() {
-        Reserva reserva = colaReservasPendientes.poll();
+        while (!colaReservasPendientes.isEmpty()) {
+            Reserva r = colaReservasPendientes.poll();
 
-        if (reserva == null) {
-            return false;
-        } else if (!reserva.getAreaComun().estaDisponible()) {
-            reserva.cancelar();
-            pilaAcciones.push(
-                    "Se canceló la reserva porque el área no está disponible: "
-                            + reserva.getCodigo()
-            );
-            return false;
-        } else if (hayCruceDeHorario(reserva)) {
-            reserva.cancelar();
-            pilaAcciones.push(
-                    "Se canceló la reserva por cruce de horario: "
-                            + reserva.getCodigo()
-            );
-            return false;
-        } else {
-            reserva.confirmar();
-            pilaAcciones.push("Se confirmó la reserva: " + reserva.getCodigo());
-            return true;
-        }
-    }
-
-    public Reserva buscarReservaSecuencial(String codigo) {
-        if (!identificadorValido(codigo)) {
-            return null;
-        }
-
-        for (Reserva reserva : reservas) {
-            if (reserva.getCodigo().trim().equals(codigo.trim())) {
-                return reserva;
-            }
-        }
-
-        return null;
-    }
-
-    public boolean cancelarReserva(String codigo) {
-        if (!identificadorValido(codigo)) {
-            return false;
-        }
-
-        Reserva reserva = buscarReservaSecuencial(codigo);
-
-        if (reserva == null) {
-            return false;
-        } else if (reserva.getEstadoReserva() == EstadoReserva.CANCELADA) {
-            return false;
-        } else {
-            reserva.cancelar();
-            pilaAcciones.push("Se canceló la reserva: " + codigo);
-            return true;
-        }
-    }
-
-    private boolean hayCruceDeHorario(Reserva nueva) {
-        for (Reserva registrada : reservas) {
-            if (registrada == nueva) {
-                continue;
-            }
-
-            if (registrada.getEstadoReserva() == EstadoReserva.CANCELADA) {
-                continue;
-            }
-
-            boolean mismaArea =
-                    registrada.getAreaComun().getId()
-                            .equals(nueva.getAreaComun().getId());
-
-            boolean mismaFecha =
-                    registrada.getFecha().equals(nueva.getFecha());
-
-            boolean seCruzanHoras =
-                    nueva.getHoraInicio().isBefore(registrada.getHoraFin())
-                            && nueva.getHoraFin().isAfter(registrada.getHoraInicio());
-
-            if (mismaArea && mismaFecha && seCruzanHoras) {
+            if (r.getEstadoReserva() == EstadoReserva.PENDIENTE) {
+                r.confirmar();
+                dao.actualizarEstadoReserva(r.getCodigo(), EstadoReserva.CONFIRMADA);
+                pilaAcciones.push("Se confirmó reserva con cola FIFO: " + r.getCodigo());
                 return true;
             }
         }
@@ -378,285 +239,283 @@ public class GestorHabitatOS {
         return false;
     }
 
-    public boolean registrarPago(Pago pago) {
-        if (pago == null) {
+    public Reserva buscarReservaSecuencial(String codigo) {
+        return arbolReservas.buscar(codigo);
+    }
+
+    public boolean cancelarReserva(String codigo) {
+        Reserva r = arbolReservas.buscar(codigo);
+
+        if (r == null || r.getEstadoReserva() == EstadoReserva.CANCELADA) {
             return false;
-        } else if (!identificadorValido(pago.getCodigo())) {
-            return false;
-        } else if (buscarPagoSecuencial(pago.getCodigo()) != null) {
-            return false;
-        } else {
-            pagos.add(pago);
-            pago.registrarPago();
-            pilaAcciones.push("Se registró el pago: " + pago.getCodigo());
+        }
+
+        if (dao.actualizarEstadoReserva(codigo, EstadoReserva.CANCELADA)) {
+            r.cancelar();
+            colaReservasPendientes.remove(r);
+            pilaAcciones.push("Se canceló reserva: " + codigo);
             return true;
         }
+
+        return false;
+    }
+
+    public boolean registrarPago(Pago pago) {
+        if (pago == null ||
+                !Validador.enteroPositivo(pago.getCodigo()) ||
+                arbolPagos.contiene(pago.getCodigo()) ||
+                !Validador.fechaNoFutura(pago.getFecha()) ||
+                !Validador.decimalPositivo(pago.getMonto()) ||
+                !Validador.texto(pago.getConcepto()) ||
+                !Validador.texto(pago.getNroComprobante()) ||
+                arbolComprobantes.contiene(pago.getNroComprobante()) ||
+                pago.getCondomino() == null ||
+                pago.getCondomino().getEstadoCondomino() != EstadoCondomino.ACTIVO) {
+            return false;
+        }
+
+        pago.registrarPago();
+
+        if (dao.insertarPago(pago)) {
+            pagos.add(pago);
+            arbolPagos.insertar(pago);
+            arbolComprobantes.insertar(pago);
+            pilaAcciones.push("Se registró pago en MySQL: " + pago.getCodigo());
+            return true;
+        }
+
+        return false;
     }
 
     public Pago buscarPagoSecuencial(String codigo) {
-        if (!identificadorValido(codigo)) {
-            return null;
-        }
-
-        for (Pago pago : pagos) {
-            if (pago.getCodigo().trim().equals(codigo.trim())) {
-                return pago;
-            }
-        }
-
-        return null;
+        return arbolPagos.buscar(codigo);
     }
 
-    public boolean actualizarEstadoPago(
-            String codigo,
-            EstadoPago estadoPago
-    ) {
-        if (!identificadorValido(codigo)) {
-            return false;
-        } else if (estadoPago == null) {
+    public boolean actualizarEstadoPago(String codigo, EstadoPago estadoPago) {
+        Pago p = arbolPagos.buscar(codigo);
+
+        if (p == null || estadoPago == null) {
             return false;
         }
 
-        Pago pago = buscarPagoSecuencial(codigo);
-
-        if (pago == null) {
-            return false;
-        } else {
-            pago.actualizarEstado(estadoPago);
-            pilaAcciones.push("Se actualizó el pago: " + codigo);
+        if (dao.actualizarEstadoPago(codigo, estadoPago)) {
+            p.actualizarEstado(estadoPago);
+            pilaAcciones.push("Se actualizó pago: " + codigo);
             return true;
         }
+
+        return false;
     }
 
     public boolean registrarMulta(Multa multa) {
-        if (multa == null) {
+        if (multa == null ||
+                !Validador.enteroPositivo(multa.getCodigo()) ||
+                arbolMultas.contiene(multa.getCodigo()) ||
+                !Validador.fechaNoFutura(multa.getFecha()) ||
+                !Validador.texto(multa.getMotivo()) ||
+                !Validador.decimalPositivo(multa.getValor()) ||
+                !Validador.texto(multa.getTipoInfraccion()) ||
+                multa.getCondomino() == null ||
+                multa.getCondomino().getEstadoCondomino() != EstadoCondomino.ACTIVO) {
             return false;
-        } else if (!identificadorValido(multa.getCodigo())) {
-            return false;
-        } else if (buscarMultaSecuencial(multa.getCodigo()) != null) {
-            return false;
-        } else {
+        }
+
+        if (dao.insertarMulta(multa)) {
             multas.add(multa);
-            multa.registrar();
-            pilaAcciones.push("Se registró la multa: " + multa.getCodigo());
+            arbolMultas.insertar(multa);
+            pilaAcciones.push("Se registró multa en MySQL: " + multa.getCodigo());
             return true;
         }
+
+        return false;
     }
 
     public Multa buscarMultaSecuencial(String codigo) {
-        if (!identificadorValido(codigo)) {
-            return null;
-        }
-
-        for (Multa multa : multas) {
-            if (multa.getCodigo().trim().equals(codigo.trim())) {
-                return multa;
-            }
-        }
-
-        return null;
+        return arbolMultas.buscar(codigo);
     }
 
     public boolean pagarMulta(String codigo) {
-        if (!identificadorValido(codigo)) {
+        Multa m = arbolMultas.buscar(codigo);
+
+        if (m == null || m.getEstadoMulta() != EstadoMulta.PENDIENTE) {
             return false;
         }
 
-        Multa multa = buscarMultaSecuencial(codigo);
-
-        if (multa == null) {
-            return false;
-        } else {
-            multa.pagarMulta();
-            pilaAcciones.push("Se pagó la multa: " + codigo);
+        if (dao.actualizarEstadoMulta(codigo, EstadoMulta.PAGADA)) {
+            m.pagarMulta();
+            pilaAcciones.push("Se pagó multa: " + codigo);
             return true;
         }
+
+        return false;
     }
 
     public boolean anularMulta(String codigo) {
-        if (!identificadorValido(codigo)) {
+        Multa m = arbolMultas.buscar(codigo);
+
+        if (m == null || m.getEstadoMulta() == EstadoMulta.ANULADA) {
             return false;
         }
 
-        Multa multa = buscarMultaSecuencial(codigo);
-
-        if (multa == null) {
-            return false;
-        } else {
-            multa.anular();
-            pilaAcciones.push("Se anuló la multa: " + codigo);
+        if (dao.actualizarEstadoMulta(codigo, EstadoMulta.ANULADA)) {
+            m.anular();
+            pilaAcciones.push("Se anuló multa: " + codigo);
             return true;
         }
+
+        return false;
     }
 
-    public Factura generarFactura(
-            String numero,
-            Condomino condomino,
-            Pago pago,
-            Multa multa
-    ) {
-        if (!identificadorValido(numero)) {
-            return null;
-        } else if (condomino == null) {
-            return null;
-        } else if (pago == null && multa == null) {
-            return null;
-        } else if (buscarFacturaSecuencial(numero) != null) {
-            return null;
-        } else {
-            Factura factura = new Factura(
-                    numero,
-                    LocalDate.now(),
-                    condomino,
-                    pago,
-                    multa
-            );
-
-            if (factura.getTotalMonto() < 0) {
-                return null;
-            } else {
-                facturas.add(factura);
-                pilaAcciones.push("Se generó la factura: " + numero);
-                return factura;
-            }
-        }
-    }
-
-    public Factura buscarFacturaSecuencial(String numero) {
-        if (!identificadorValido(numero)) {
+    public Factura generarFactura(String numero, Condomino condomino, Pago pago, Multa multa) {
+        if (!Validador.enteroPositivo(numero) ||
+                arbolFacturas.contiene(numero) ||
+                condomino == null ||
+                condomino.getEstadoCondomino() != EstadoCondomino.ACTIVO ||
+                (pago == null && multa == null)) {
             return null;
         }
 
-        for (Factura factura : facturas) {
-            if (factura.getNumero().trim().equals(numero.trim())) {
-                return factura;
-            }
+        if (pago != null && pago.getEstadoPago() != EstadoPago.PAGADO) {
+            return null;
+        }
+
+        if (multa != null && multa.getEstadoMulta() == EstadoMulta.ANULADA) {
+            return null;
+        }
+
+        Factura f = new Factura(numero, LocalDate.now(), condomino, pago, multa);
+
+        if (!Validador.decimalPositivo(f.getTotalMonto())) {
+            return null;
+        }
+
+        if (dao.insertarFactura(f)) {
+            facturas.add(f);
+            arbolFacturas.insertar(f);
+            pilaAcciones.push("Se generó factura en MySQL: " + numero);
+            return f;
         }
 
         return null;
     }
 
+    public Factura buscarFacturaSecuencial(String numero) {
+        return arbolFacturas.buscar(numero);
+    }
+
     public boolean anularFactura(String numero) {
-        if (!identificadorValido(numero)) {
+        Factura f = arbolFacturas.buscar(numero);
+
+        if (f == null || f.getEstadoFactura() == EstadoFactura.ANULADA) {
             return false;
         }
 
-        Factura factura = buscarFacturaSecuencial(numero);
-
-        if (factura == null) {
-            return false;
-        } else {
-            factura.anular();
-            pilaAcciones.push("Se anuló la factura: " + numero);
+        if (dao.actualizarEstadoFactura(numero, EstadoFactura.ANULADA)) {
+            f.anular();
+            pilaAcciones.push("Se anuló factura: " + numero);
             return true;
         }
+
+        return false;
     }
 
     public double calcularTotalFacturasRecursivo() {
         return sumarFacturas(0);
     }
 
-    private double sumarFacturas(int indice) {
-        if (indice >= facturas.size()) {
+    private double sumarFacturas(int posicion) {
+        if (posicion >= facturas.size()) {
             return 0;
-        } else {
-            return facturas.get(indice).getTotalMonto()
-                    + sumarFacturas(indice + 1);
         }
+
+        Factura actual = facturas.get(posicion);
+        double valor = actual.getEstadoFactura() == EstadoFactura.EMITIDA
+                ? actual.getTotalMonto()
+                : 0;
+
+        return valor + sumarFacturas(posicion + 1);
+    }
+
+    public void ordenarPagosPorFechaInsertionSort() {
+        for (int i = 1; i < pagos.size(); i++) {
+            Pago actual = pagos.get(i);
+            int j = i - 1;
+
+            while (j >= 0 && pagos.get(j).getFecha().isAfter(actual.getFecha())) {
+                pagos.set(j + 1, pagos.get(j));
+                j--;
+            }
+
+            pagos.set(j + 1, actual);
+        }
+    }
+
+    public String clasificarPagosPorEstado() {
+        int pagados = 0;
+        int pendientes = 0;
+        int atrasados = 0;
+
+        for (Pago p : pagos) {
+            if (p.getEstadoPago() == EstadoPago.PAGADO) pagados++;
+            if (p.getEstadoPago() == EstadoPago.PENDIENTE) pendientes++;
+            if (p.getEstadoPago() == EstadoPago.ATRASADO) atrasados++;
+        }
+
+        return "Pagados: " + pagados +
+                "\nPendientes: " + pendientes +
+                "\nAtrasados: " + atrasados;
     }
 
     public String verUltimaAccion() {
-        if (pilaAcciones.isEmpty()) {
-            return "No hay acciones registradas.";
-        } else {
-            return pilaAcciones.peek();
-        }
+        return pilaAcciones.isEmpty() ? "No hay acciones registradas." : pilaAcciones.peek();
     }
 
     public String quitarUltimaAccion() {
-        if (pilaAcciones.isEmpty()) {
-            return "No hay acciones para quitar.";
-        } else {
-            return pilaAcciones.pop();
+        return pilaAcciones.isEmpty() ? "No hay acciones para quitar." : pilaAcciones.pop();
+    }
+
+    private String reporte(ArrayList<?> lista, String titulo) {
+        StringBuilder sb = new StringBuilder(titulo).append("\n\n");
+
+        if (lista.isEmpty()) {
+            sb.append("No existen registros.\n");
         }
+
+        for (Object dato : lista) {
+            sb.append(dato).append("\n");
+        }
+
+        return sb.toString();
     }
 
     public String generarReporteCondominos() {
-        StringBuilder reporte = new StringBuilder();
-        reporte.append("REPORTE DE CONDÓMINOS\n\n");
-
-        if (condominos.isEmpty()) {
-            reporte.append("No existen condóminos registrados.\n");
-        } else {
-            for (Condomino condomino : condominos) {
-                reporte.append(condomino).append("\n");
-            }
-        }
-
-        return reporte.toString();
+        cargarDatosDesdeMySQL();
+        return reporte(condominos, "REPORTE DE CONDÓMINOS");
     }
 
     public String generarReporteReservas() {
-        StringBuilder reporte = new StringBuilder();
-        reporte.append("REPORTE DE RESERVAS\n\n");
-
-        if (reservas.isEmpty()) {
-            reporte.append("No existen reservas registradas.\n");
-        } else {
-            for (Reserva reserva : reservas) {
-                reporte.append(reserva).append("\n");
-            }
-        }
-
-        return reporte.toString();
+        cargarDatosDesdeMySQL();
+        return reporte(reservas, "REPORTE DE RESERVAS");
     }
 
     public String generarReportePagos() {
-        StringBuilder reporte = new StringBuilder();
-        reporte.append("REPORTE DE PAGOS\n\n");
+        cargarDatosDesdeMySQL();
+        ordenarPagosPorFechaInsertionSort();
 
-        if (pagos.isEmpty()) {
-            reporte.append("No existen pagos registrados.\n");
-        } else {
-            for (Pago pago : pagos) {
-                reporte.append(pago).append("\n");
-            }
-        }
-
-        return reporte.toString();
+        return reporte(pagos, "REPORTE DE PAGOS ORDENADOS POR FECHA")
+                + "\n" + clasificarPagosPorEstado();
     }
 
     public String generarReporteMultas() {
-        StringBuilder reporte = new StringBuilder();
-        reporte.append("REPORTE DE MULTAS\n\n");
-
-        if (multas.isEmpty()) {
-            reporte.append("No existen multas registradas.\n");
-        } else {
-            for (Multa multa : multas) {
-                reporte.append(multa).append("\n");
-            }
-        }
-
-        return reporte.toString();
+        cargarDatosDesdeMySQL();
+        return reporte(multas, "REPORTE DE MULTAS");
     }
 
     public String generarReporteFacturas() {
-        StringBuilder reporte = new StringBuilder();
-        reporte.append("REPORTE DE FACTURAS\n\n");
+        cargarDatosDesdeMySQL();
 
-        if (facturas.isEmpty()) {
-            reporte.append("No existen facturas registradas.\n");
-        } else {
-            for (Factura factura : facturas) {
-                reporte.append(factura).append("\n");
-            }
-
-            reporte.append("\nTotal general facturado: $")
-                    .append(calcularTotalFacturasRecursivo());
-        }
-
-        return reporte.toString();
+        return reporte(facturas, "REPORTE DE FACTURAS")
+                + "\nTotal facturado: $" + calcularTotalFacturasRecursivo();
     }
 
     public ArrayList<Condomino> getCondominos() {
